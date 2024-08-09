@@ -1,0 +1,17 @@
+torch
+torchvision
+easyocr
+python-bidi==0.4.2
+translate
+underthesea==1.3.5a3
+underthesea[deep]
+pyvi
+langdetect
+googletrans==3.1.0a0
+peft
+bitsandbytes
+transformers
+flash-attn
+sentence-transformers
+faiss-cpu
+git+https://github.com/openai/CLIP.git
