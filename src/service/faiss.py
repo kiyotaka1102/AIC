@@ -20,7 +20,7 @@ class MyFaiss:
     if mode == "clip":
       self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
     else:
-      self.q_encoder = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+      self.q_encoder = SentenceTransformer("nomic-ai/nomic-embed-text-v1", trust_remote_code=True)
 
 
   def load_bin_file(self, bin_file: str):
