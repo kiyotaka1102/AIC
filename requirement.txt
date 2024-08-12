@@ -15,3 +15,4 @@ flash-attn
 sentence-transformers
 faiss-cpu
 git+https://github.com/openai/CLIP.git
+git+https://github.com/JaidedAI/EasyOCR.git
