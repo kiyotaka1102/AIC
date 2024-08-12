@@ -1,7 +1,7 @@
-- work_dir: your/path
-  keyframes_id: data/keyframes_id_search.json
-  file_bin:
-    ocr: data/dicts/bin_ocr/faiss_OCR_cosine
-    clip: data/dicts/bin_clip/faiss_CLIP_cosine
-    blip: data/dicts/bin_blip/faiss_BLIP_cosine
-    reitr: data/dicts/bin_ReITR/faiss_ReITR_cosine
+work_dir: your/path
+keyframes_id: data/keyframes_id_search.json
+file_bin:
+  ocr: data/dicts/bin_ocr/faiss_OCR_cosine.bin
+  clip: data/dicts/bin_clip/faiss_CLIP_cosine.bin
+  blip: data/dicts/bin_blip/faiss_BLIP_cosine.bin
+  reitr: data/dicts/bin_ReITR/faiss_ReITR_cosine.bin
