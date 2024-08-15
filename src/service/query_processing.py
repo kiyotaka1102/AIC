@@ -47,7 +47,7 @@ class Text_Preprocessing():
     def __call__(self, text):
         # Apply preprocessing steps
         text = self.lowercasing(text)
-        text = self.remove_stopwords(text)
+        #text = self.remove_stopwords(text)
         # Uncomment and adjust as needed
         # text = self.remove_accents(text)
         # text = self.add_accents(text)
