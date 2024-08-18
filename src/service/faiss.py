@@ -181,5 +181,52 @@ class MyFaiss:
         result_strings = [image_path for _, image_path in combined_results[:k]]
 
       return result_strings
+def main():
+    ##### TESTING #####
+    # Define your working directory
+    #WORK_DIR = "/path/to/your/work_dir"  # Change this to your actual working directory
 
+    # Device configuration
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    # Paths to the primary Faiss indices for initial feature extraction
+    bin_files = [
+        f"{WORK_DIR}/data/dicts/bin_ocr/faiss_OCR_cosine.bin",
+        f"{WORK_DIR}/data/dicts/bin_clip/faiss_CLIP_cosine.bin",
+        f"{WORK_DIR}/data/dicts/bin_nomic/faiss_nomic_cosine.bin"
+        f"{WORK_DIR}/data/dicts/bin_blip/faiss_BLIP_cosine.bin"  # Ensure this path is correct
+    ]
+
+    # Modes corresponding to each bin file
+    modes = ["ocr", "clip","nomic", "blip"]  # Adjust modes according to your bin files
+    #modes = ["nomic"]
+    # Path to the re-ranking Faiss index
+    rerank_bin_file = f"{WORK_DIR}/data/dicts/bin_vlm/faiss_VLM_cosine.bin"
+
+    # Path to the JSON file
+    json_path = f"{WORK_DIR}/data/dicts/keyframes_id_search.json"
+
+    # Initialize MyFaiss with multiple initial indices and one re-ranking index
+    cosine_faiss = MyFaiss(bin_files, json_path, device, modes, rerank_bin_file)
+
+    ##### TEXT SEARCH #####
+    text = "lũ lụt, mực nước dân cao"
+
+    # Perform text search
+    result_strings = cosine_faiss.text_search(text, k=12)
+
+    # Extract image paths from the result strings
+    image_paths = [result_string for result_string in result_strings if result_string is not None]
+
+    # Base path for images
+    base_path = f"{WORK_DIR}/data/"
+
+    # Create absolute paths for each image
+    img_paths = [os.path.join(base_path, image_path) for image_path in image_paths]
+    print (len(img_paths))
+    # Show images
+    cosine_faiss.show_images(img_paths)
+
+if __name__ == "__main__":
+    main()
 
