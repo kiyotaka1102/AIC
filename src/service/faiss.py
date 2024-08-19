@@ -24,14 +24,15 @@ class MyFaiss:
       self.device = device
 
       # Initialize models based on modes
-      self.models = []
-      for mode in modes:
-          if mode == "clip":
-              model, preprocess = clip.load("ViT-B/32", device=self.device)
-              self.models.append(model)
-          else:
-              model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
-              self.models.append(model)
+      #self.models =[]
+      self.model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+    #   for mode in modes:
+    #       if mode == "clip":
+    #           model, preprocess = clip.load("ViT-B/32", device=self.device)
+    #           self.models.append(model)
+    #       else:
+    #           model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+    #           self.models.append(model)
 
     def load_bin_file(self, bin_file: str):
         return faiss.read_index(bin_file)
@@ -105,14 +106,14 @@ class MyFaiss:
       rerank_results = None
       index_count_map = {}  # Dictionary to store counts for indices
       index_score_map = {}  # Dictionary to store the aggregated scores for each index
-
+      text_features = self.model.encode(text)
       for idx, (mode, index) in enumerate(zip(self.modes, self.indexes)):
-          if mode == "clip":
-              with torch.no_grad():
-                  text_input = clip.tokenize([text]).to(self.device)
-                  text_features = self.models[idx].encode_text(text_input).cpu().numpy().astype(np.float32)
-          else:
-                  text_features = self.models[idx].encode(text)
+        #   if mode == "clip":
+        #       with torch.no_grad():
+        #           text_input = clip.tokenize([text]).to(self.device)
+        #           text_features = self.models[idx].encode_text(text_input).cpu().numpy().astype(np.float32)
+        #   else:
+        #           text_features = self.models[idx].encode(text)
 
           # Resize or pad text_features to match the dimensionality of self.d
           text_features = text_features.reshape(1, -1)
