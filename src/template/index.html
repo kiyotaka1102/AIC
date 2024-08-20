@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Search</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { width: 80%; margin: 0 auto; }
+        .results { margin-top: 20px; }
+        img { max-width: 200px; margin: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Search Images</h1>
+
+        <!-- Form to select and load index -->
+        <form id="load-form">
+            <h2>Select .bin files:</h2>
+            <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_blip/faiss_BLIP_cosine.bin">BLIP or VLM</label><br>
+            <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_nomic/faiss_nomic_cosine.bin"> NOMIC</label><br>
+            <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_ocr/faiss_OCR_cosine.bin"> OCR</label><br>
+            <!-- Add more checkboxes as needed -->
+            <button type="submit">Load Index</button>
+        </form>
+
+        <!-- Form to search images -->
+        <form id="search-form" style="margin-top: 20px;">
+            <input type="text" id="text" placeholder="Enter text to search" required>
+            <input type="number" id="k" placeholder="Number of results" required min="1">
+            <button type="submit">Search</button>
+        </form>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('load-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            // Get selected file values
+            const selectedFiles = Array.from(document.querySelectorAll('input[name="bin_files"]:checked')).map(cb => cb.value);
+
+            try {
+                const response = await fetch('/load_index/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bin_files: selectedFiles })
+                });
+
+                const data = await response.json();
+                alert(data.status);
+            } catch (error) {
+                alert("Failed to load index: " + error.message);
+            }
+        });
+
+        document.getElementById('search-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const text = document.getElementById('text').value;
+            const k = document.getElementById('k').value;
+        
+            try {
+                const response = await fetch('/search/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, k })
+                });
+        
+                const data = await response.json();
+                const resultsDiv = document.getElementById('results');
+                resultsDiv.innerHTML = '';
+        
+                if (data.image_paths && data.image_paths.length > 0) {
+                    data.image_paths.forEach(path => {
+                        var img = document.createElement('img');
+                        img.src = path;  // The path is now a valid URL to the image
+                        img.alt = path;
+                        
+                        resultsDiv.appendChild(img);
+                    });
+                } else {
+                    resultsDiv.innerHTML = '<p>No images found.</p>';
+                }
+            } catch (error) {
+                alert("Search failed: " + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

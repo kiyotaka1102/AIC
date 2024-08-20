@@ -3,11 +3,11 @@ import googletrans
 import translate
 from difflib import SequenceMatcher
 from langdetect import detect
-import underthesea
+#from underthesea import sent_tokenize, text_normalize, classify, sentiment
 
 
 class Text_Preprocessing():
-    def __init__(self, stopwords_path=f"{WORK_DIR}/data/dicts/vietnamese-stopwords-dash.txt"):
+    def __init__(self, stopwords_path=f"./data/vietnamese-stopwords-dash.txt"):
         with open(stopwords_path, 'r', encoding='utf-8') as f:  # Open in text mode for easier string handling
             self.stop_words = [line.strip() for line in f.readlines()]
 
@@ -32,17 +32,17 @@ class Text_Preprocessing():
     def remove_accents(self, text):
         return ViUtils.remove_accents(text)
 
-    def sentence_segment(self, text):
-        return underthesea.sent_tokenize(text)
+    # def sentence_segment(self, text):
+    #     return sent_tokenize(text)
 
-    def text_norm(self, text):
-        return underthesea.text_normalize(text)
+    # def text_norm(self, text):
+    #     return text_normalize(text)
 
-    def text_classify(self, text):
-        return underthesea.classify(text)
+    # def text_classify(self, text):
+    #     return classify(text)
 
-    def sentiment_analysis(self, text):
-        return underthesea.sentiment(text)
+    # def sentiment_analysis(self, text):
+    #     return sentiment(text)
 
     def __call__(self, text):
         # Apply preprocessing steps
@@ -51,7 +51,7 @@ class Text_Preprocessing():
         # Uncomment and adjust as needed
         # text = self.remove_accents(text)
         # text = self.add_accents(text)
-        text = self.text_norm(text)
+        # text = self.text_norm(text)
         return text  # Return the processed text
 
 class Translation():

@@ -1,55 +1,63 @@
-from flask import Flask, request, jsonify, send_from_directory
-import os
-import json
-import numpy as np
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 import torch
-import faiss
-from your_faiss_module import MyFaiss  # Update this import based on your file structure
-
-app = Flask(__name__)
-
-# Define your working directory and paths
-WORK_DIR = "/path/to/your/work_dir"  # Change this to your actual working directory
+from typing import List
+from src.service.faiss import MyFaiss
+import os
+app = FastAPI()
 
 # Device configuration
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+base_path = 'D:/AIC-24/AIC2024_UTE_AI_Unknown/data'
+# Initialize MyFaiss with initial parameters (no .bin files loaded yet)
+cosine_faiss = MyFaiss(
+    bin_files=[],
+    dict_json='./data/dicts/keyframes_id_search.json',
+    device=device,
+    modes=[]
+)
 
-# Initialize MyFaiss
-bin_files = [
-    f"{WORK_DIR}/data/dicts/bin_ocr/faiss_OCR_cosine.bin",
-    f"{WORK_DIR}/data/dicts/bin_clip/faiss_CLIP_cosine.bin",
-    f"{WORK_DIR}/data/dicts/bin_nomic/faiss_nomic_cosine.bin",
-    f"{WORK_DIR}/data/dicts/bin_blip/faiss_BLIP_cosine.bin"
-]
-modes = ["ocr", "clip", "nomic", "blip"]
-rerank_bin_file = f"{WORK_DIR}/data/dicts/bin_vlm/faiss_VLM_cosine.bin"
-json_path = f"{WORK_DIR}/data/dicts/keyframes_id_search.json"
+templates = Jinja2Templates(directory="./src/template")
 
-faiss_instance = MyFaiss(bin_files, json_path, device, modes, rerank_bin_file)
+class LoadIndexRequest(BaseModel):
+    bin_files: List[str]
 
-@app.route('/search', methods=['POST'])
-def search():
-    data = request.json
-    query_text = data.get('text')
-    
-    if not query_text:
-        return jsonify({'error': 'No text provided'}), 400
-    
+class SearchQuery(BaseModel):
+    text: str
+    k: int
+
+@app.post("/load_index/")
+async def load_index(request: LoadIndexRequest):
     try:
-        # Perform text search using MyFaiss
-        result_strings = faiss_instance.text_search(query_text, k=5)
-        
-        # Create a list of image paths
-        base_path = f"{WORK_DIR}/data/"
-        image_paths = [os.path.join(base_path, path) for path in result_strings if path]
-        
-        return jsonify({'images': image_paths})
+        bin_files = request.bin_files
+        modes = [file.split('/')[-1].split('_')[0] for file in bin_files]  # Extract modes from file names
+
+        global cosine_faiss
+        cosine_faiss = MyFaiss(
+            bin_files=bin_files,
+            dict_json='./data/dicts/keyframes_id_search.json',
+            device=device,
+            modes=modes,
+            rerank_bin_file='./src/working/dicts/bin_clip/faiss_CLIP_cosine.bin'  # Optional: set if using a re-ranking index
+        )
+        return JSONResponse(content={"status": "Index loaded from selected .bin files"})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.route('/static/<path:path>')
-def serve_static(path):
-    return send_from_directory('static', path)
+@app.post("/search/")
+async def search_images(query: SearchQuery):
+    try:
+        if not cosine_faiss.indexes:
+            raise HTTPException(status_code=400, detail="No index loaded")
+   
+        image_paths = cosine_faiss.text_search(query.text, query.k)
+        resolved_image_paths = [os.path.join(base_path, image_path) for image_path in image_paths]
+        return {"image_paths": resolved_image_paths}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == '__main__':
-    app.run(debug=True)
+@app.get("/")
+async def get_index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
