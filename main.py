@@ -10,7 +10,7 @@ app = FastAPI()
 
 # Device configuration
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-base_path = 'D:/AIC-24/AIC2024_UTE_AI_Unknown/data'
+base_path = r'D:/AIC-24/AIC2024_UTE_AI_Unknown/data/'
 # Initialize MyFaiss with initial parameters (no .bin files loaded yet)
 cosine_faiss = MyFaiss(
     bin_files=[],

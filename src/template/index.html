@@ -74,11 +74,27 @@
         
                 if (data.image_paths && data.image_paths.length > 0) {
                     data.image_paths.forEach(path => {
-                        var img = document.createElement('img');
+                        // Create a container div for each image
+                        const container = document.createElement('div');
+                        container.style.marginBottom = '20px'; // Optional: space between images
+                        
+                        // Create the image element
+                        const img = document.createElement('img');
                         img.src = path;  // The path is now a valid URL to the image
                         img.alt = path;
+                        img.style.maxWidth = '200px'; // Optional: adjust size
+                        img.style.maxHeight = '200px'; // Optional: adjust size
                         
-                        resultsDiv.appendChild(img);
+                        // Create a label element
+                        const label = document.createElement('p');
+                        label.textContent = path; // Show the path as the label
+                        
+                        // Append the image and label to the container
+                        container.appendChild(img);
+                        container.appendChild(label);
+                        
+                        // Append the container to the results div
+                        resultsDiv.appendChild(container);
                     });
                 } else {
                     resultsDiv.innerHTML = '<p>No images found.</p>';
@@ -87,6 +103,7 @@
                 alert("Search failed: " + error.message);
             }
         });
+        
     </script>
 </body>
 </html>
