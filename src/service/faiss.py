@@ -103,7 +103,7 @@ class MyFaiss:
 
       text_features = self.model.encode(text)
       text_features = text_features.reshape(1, -1)
-
+      text_features_rr = text_features
       for index in self.indexes:
           if text_features.shape[1] != index.d:
               if text_features.shape[1] < index.d:
@@ -112,20 +112,21 @@ class MyFaiss:
                   text_features = text_features[:, :index.d]
 
           scores, idx_image = index.search(text_features, k=k)
-         
-          all_results.append((scores, idx_image, mode, index))
+          all_results.append((scores, idx_image))
 
       if self.rerank_index is not None:
-          # Backup the rerank_index on the first search
-         
-
           rerank_features_list = []
           rerank_indices = []
 
           for _, idx_image in all_results:
-              rerank_features = np.array([self.rerank_index.reconstruct(idx) for idx in idx_image[0]])
+              rerank_features = np.array([self.rerank_index.reconstruct(int(idx)) for idx in idx_image[0]])
               rerank_features_list.append(rerank_features)
               rerank_indices.extend(idx_image[0])
+
+          # Check if rerank_features_list is empty
+          if len(rerank_features_list) == 0:
+              print("No rerank features to process.")
+              return []
 
           rerank_features_combined = np.vstack(rerank_features_list)
           k_rerank = len(rerank_features_combined)
@@ -136,42 +137,44 @@ class MyFaiss:
               else:
                   rerank_features_combined = rerank_features_combined[:, :self.rerank_index.d]
 
-          # Normalize rerank features for cosine similarity
-          rerank_features_combined = faiss.normalize_L2(rerank_features_combined)
-          text_features = faiss.normalize_L2(text_features)
-
+ 
+          
           # Create a new FAISS index for reranking
-          search_rr_index = faiss.IndexFlatIP(self.rerank_index.d)  # Using inner product (cosine similarity)
+          search_rr_index = faiss.IndexFlatIP(self.rerank_index.d)  # Using inner product (cosine similarity)          
           search_rr_index.add(rerank_features_combined)
+          #resize for text_search_rr
+          if text_features_rr.shape[1] != self.rerank_index.d:
+              if text_features_rr.shape[1] < self.rerank_index.d:
+                  text_features_rr = np.pad(text_features_rr, ((0, 0), (0, self.rerank_index.d - text_features_rr.shape[1])), 'constant')
+              else:
+                  text_features_rr = text_features_rr[:, :self.rerank_index.d]
 
           # Perform FAISS search on the combined rerank features
-          rerank_scores, rerank_idx_image = search_rr_index.search(text_features, k=k_rerank)
+          rerank_scores, rerank_idx_image = search_rr_index.search(text_features_rr, k=k_rerank)
 
           # Map rerank scores back to the original indices
           rerank_score_map = {}
           for i, idx in enumerate(rerank_idx_image[0]):
               original_idx = rerank_indices[idx]
               rerank_score_map[original_idx] = rerank_scores[0][i]
+          
 
           # Sort all_results based on reranking scores
           sorted_results = sorted(all_results, key=lambda result: -np.mean([rerank_score_map.get(idx, 0) for idx in result[1][0]]))
 
           # Prepare final result strings using list indexing
           result_strings = []
-          for scores, idx_image, mode, index in sorted_results:
+          for scores, idx_image in sorted_results:
               result_strings.extend([self.dict_json[idx] if 0 <= idx < len(self.dict_json) else None for idx in idx_image[0]])
       else:
           combined_results = []
-          for scores, idx_image, mode, index in all_results:
+          for scores, idx_image in all_results:
               combined_results.extend([(score, self.dict_json[idx_image[0][i]]) for i, score in enumerate(scores[0])])
 
           combined_results.sort(key=lambda x: -x[0])
           result_strings = [image_path for _, image_path in combined_results[:k]]
 
       return result_strings
-
-
-
 
 
 
