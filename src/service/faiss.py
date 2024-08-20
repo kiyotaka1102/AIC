@@ -183,7 +183,8 @@ class MyFaiss:
               for i, score in enumerate(scores[0])
           ]
           combined_results.sort(key=lambda x: -x[0])
-          result_strings = [image_path for _, image_path in combined_results[:k]]
+          k_final = max(k, len(combined_results))
+          result_strings = [image_path for _, image_path in combined_results[:k_final]]
 
       return result_strings
 
