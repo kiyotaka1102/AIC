@@ -2,13 +2,14 @@ import faiss
 import json
 import numpy as np
 import torch
-import clip
+#import clip
 from sentence_transformers import SentenceTransformer
 import matplotlib.pyplot as plt
 import math
 from langdetect import detect
 from sklearn.decomposition import PCA
-
+from src.service.query_processing import Translation
+import copy
 class MyFaiss:
     def __init__(self, bin_files: list, dict_json: str, device, modes: list, rerank_bin_file: str = None):
         # Ensure that bin_files and modes lists have the same length
@@ -22,7 +23,7 @@ class MyFaiss:
       self.dict_json = self._read_json(dict_json)
       self.modes = modes
       self.device = device
-
+      self.rerank_index_backup = None
       # Initialize models based on modes
       #self.models =[]
       self.model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
@@ -97,91 +98,76 @@ class MyFaiss:
       plt.show()
 
     def text_search(self, text, k):
-      #if detect(text) == 'vi':
-      text = self.translate(text)
-      print("Text translation: ", text)
+        text = self.translate(text)
+        print("Text translation: ", text)
 
-      # Collect results from all modes
-      all_results = []
-      rerank_results = None
-      index_count_map = {}  # Dictionary to store counts for indices
-      index_score_map = {}  # Dictionary to store the aggregated scores for each index
-      text_features = self.model.encode(text)
-      for idx, (mode, index) in enumerate(zip(self.modes, self.indexes)):
-        #   if mode == "clip":
-        #       with torch.no_grad():
-        #           text_input = clip.tokenize([text]).to(self.device)
-        #           text_features = self.models[idx].encode_text(text_input).cpu().numpy().astype(np.float32)
-        #   else:
-        #           text_features = self.models[idx].encode(text)
+        # Encode the query text
+        text_features = self.model.encode(text)
+        text_features = text_features.reshape(1, -1)
 
-          # Resize or pad text_features to match the dimensionality of self.d
-          text_features = text_features.reshape(1, -1)
-          if text_features.shape[1] != index.d:
-              if text_features.shape[1] < index.d:
-                  text_features = np.pad(text_features, ((0, 0), (0, index.d - text_features.shape[1])), 'constant')
-              else:
-                  text_features = text_features[:, :index.d]
-
-          # Perform search with each index
-          scores, idx_image = index.search(text_features, k=k)
-          for i, idx in enumerate(idx_image[0]):
-              if idx not in index_count_map:
-                  index_count_map[idx] = 0
-              index_count_map[idx] += 1
-              if idx not in index_score_map:
-                  index_score_map[idx] = 0
-              index_score_map[idx] += scores[0][i]
-          all_results.append((scores, idx_image, mode, index, idx))
-          if self.rerank_index is not None:
-            if text_features.shape[1] != self.rerank_index.d:
-                if text_features.shape[1] < self.rerank_index.d:
-                    print("Padding rerank_features to match re-ranking index dimensionality.")
-                    text_features = np.pad(text_features, ((0, 0), (0, self.rerank_index.d - text_features.shape[1])), 'constant')
+        # Perform the initial search with the primary index
+        all_results = []
+        for mode, index in zip(self.modes, self.indexes):
+            if text_features.shape[1] != index.d:
+                if text_features.shape[1] < index.d:
+                    text_features = np.pad(text_features, ((0, 0), (0, index.d - text_features.shape[1])), 'constant')
                 else:
-                    print("Trimming rerank_features to match re-ranking index dimensionality.")
-                    text_features = text_features[:, :self.rerank_index.d]
-            assert text_features.shape[1] == self.rerank_index.d, "Dimensionality mismatch for re-ranking features"
+                    text_features = text_features[:, :index.d]
 
-            if mode != "clip" and rerank_results is None:
-                rerank_scores, rerank_idx_image = self.rerank_index.search(text_features, k=k)
-                rerank_results = (rerank_scores, rerank_idx_image)
+            scores, idx_image = index.search(text_features, k=k)
+            all_results.append((scores, idx_image))
 
-      if rerank_results is not None:
-          rerank_scores, rerank_idx_image = rerank_results
+        if self.rerank_index is not None:
+            # Backup the rerank_index on the first search
+            if self.rerank_index_backup is None:
+                self.rerank_index_backup = copy.deepcopy(self.rerank_index)
 
-          # Flatten rerank_idx_image for easy indexing
-          rerank_idx_image_flat = rerank_idx_image.flatten()
+            rerank_indices = []
+            rerank_features_list = []
 
-          # Create a dictionary to map index to its re-ranking score
-          rerank_score_map = {}
-          for i, idx in enumerate(rerank_idx_image_flat):
-              rerank_score_map[idx] = rerank_scores[0, i]
+            # Collect indices and features for re-ranking
+            for _, idx_image in all_results:
+                idx_image_list = idx_image[0].astype(int).tolist()
+                rerank_indices.extend(idx_image_list)
+                rerank_features_list.extend([self.rerank_index_backup.reconstruct(int(idx)) for idx in idx_image_list])
 
-          # # Adjust rerank scores based on the count
-          adjusted_rerank_scores = {}
-          for idx, count in index_count_map.items():
-              multiplier = 1.2 + 0.6 * (count - 1)  # 1.2 for 1 occurrence, 1.8 for 2 occurrences, etc.
-              adjusted_rerank_scores[idx] = rerank_score_map.get(idx, 0) * multiplier
+            rerank_features_combined = np.vstack(rerank_features_list)
+            k_rerank = len(rerank_features_combined)
 
-          # Sort all_results based on adjusted reranking scores
-          sorted_results = sorted(all_results, key=lambda result: -np.mean([adjusted_rerank_scores.get(idx, 0) for idx in result[1][0]]))
+            # Ensure text_features has the same dimensionality as the rerank index
+            if text_features.shape[1] != self.rerank_index_backup.d:
+                if text_features.shape[1] < self.rerank_index_backup.d:
+                    text_features = np.pad(text_features, ((0, 0), (0, self.rerank_index_backup.d - text_features.shape[1])), 'constant')
+                else:
+                    text_features = text_features[:, :self.rerank_index_backup.d]
 
-          # Prepare final result strings using list indexing
-          result_strings = []
-          for scores, idx_image, mode, index, idx in sorted_results:
-              result_strings.extend([self.dict_json[idx] if 0 <= idx < len(self.dict_json) else None for idx in idx_image[0]])
-      else:
-        # If no re-ranking is provided, combine all results and avoid additional sorting
-        combined_results = []
-        for scores, idx_image, mode, index, idx in all_results:
-            combined_results.extend([(score, self.dict_json[idx_image[0][i]]) for i, score in enumerate(scores[0])])
+            # Perform FAISS search on the combined rerank features
+            rerank_scores, rerank_idx_image = self.rerank_index_backup.search(text_features, k=k_rerank)
 
-        # Optionally sort combined results by score
-        combined_results.sort(key=lambda x: -x[0])  # Sort by score in descending order
-        result_strings = [image_path for _, image_path in combined_results[:k]]
+            # Map rerank scores to image paths
+            rerank_indices = np.array(rerank_indices)
+            rerank_score_map = {}
+            for i, idx in enumerate(rerank_idx_image[0]):
+                if 0 <= idx < len(rerank_indices):  # Ensure idx is within bounds
+                    original_idx = rerank_indices[idx]
+                    rerank_score_map[original_idx] = rerank_scores[0][i]
 
-      return result_strings
+            # Sort results based on reranking scores
+            sorted_results = sorted(rerank_score_map.items(), key=lambda item: -item[1])
+
+            # Prepare final result strings using list indexing
+            result_strings = [self.dict_json[idx] if 0 <= idx < len(self.dict_json) else None for idx, _ in sorted_results[:k]]
+        else:
+            # Directly use the primary index results
+            combined_results = []
+            for scores, idx_image in all_results:
+                combined_results.extend([(score, self.dict_json[idx_image[0][i]]) for i, score in enumerate(scores[0])])
+
+            combined_results.sort(key=lambda x: -x[0])
+            result_strings = [image_path for _, image_path in combined_results[:k]]
+
+        return result_strings
+    
 def main():
     ##### TESTING #####
     # Define your working directory
