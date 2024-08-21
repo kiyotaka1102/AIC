@@ -12,7 +12,7 @@
             background-color: #f4f4f4;
         }
         .container {
-            width: 80%;
+            width: 100%;
             margin: 0 auto;
             padding: 20px;
             background-color: #fff;
@@ -39,7 +39,7 @@
             margin: 5px 0;
             border: 1px solid #ddd;
             border-radius: 4px;
-            width: calc(100% - 22px); /* Adjust width for padding and border */
+            width: calc(100% - 22px);
             box-sizing: border-box;
         }
         button {
@@ -58,22 +58,24 @@
             margin-top: 20px;
             display: flex;
             flex-wrap: wrap;
-            gap: 20px;
         }
         .image-container {
-            flex: 1 1 calc(25% - 20px); /* Adjust width and margin */
-            margin-bottom: 20px;
+            width: 150px;
+            height: 170px;
+            margin: 0;
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             border-radius: 4px;
-            padding: 10px;
-            text-align: center;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         .image-container img {
-            max-width: 100%;
-            max-height: 150px;
-            margin-bottom: 10px;
-            border-radius: 4px;
+            width: 100%;
+            height: 130px;
+            object-fit: cover;
             cursor: pointer;
             transition: transform 0.3s ease;
         }
@@ -82,8 +84,18 @@
         }
         .image-info {
             color: #333;
-            font-size: 14px;
-            margin: 0;
+            font-size: 12px;
+            padding: 5px;
+            text-align: center;
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .back-button {
+            margin-top: 10px;
+            display: none;
+            background-color: #6c757d;
         }
     </style>
 </head>
@@ -91,7 +103,6 @@
     <div class="container">
         <h1>Search Images</h1>
 
-        <!-- Form to select and load index -->
         <form id="load-form">
             <h2>Select .bin files:</h2>
             <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_nomic/faiss_nomic_cosine.bin"> NOMIC</label>
@@ -102,20 +113,50 @@
             <button type="submit">Load Index</button>
         </form>
 
-        <!-- Form to search images -->
         <form id="search-form">
             <input type="text" id="text" placeholder="Enter text to search" required>
             <input type="number" id="k" placeholder="Number of results" required min="1">
             <button type="submit">Search</button>
         </form>
 
+        <button id="back-button" class="back-button">Back</button>
+
         <div class="results" id="results"></div>
     </div>
 
     <script>
+        let historyStack = [];
+        let currentResults = [];
+
+        function displayResults(imagePaths) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (imagePaths && imagePaths.length > 0) {
+                imagePaths.forEach(path => {
+                    const container = document.createElement('div');
+                    container.classList.add('image-container');
+
+                    const img = document.createElement('img');
+                    img.src = path;
+                    img.onclick = () => handleImageClick(path);
+
+                    const info = document.createElement('p');
+                    info.classList.add('image-info');
+                    info.textContent = path.split('/').slice(-2).join('/');
+
+                    container.appendChild(img);
+                    container.appendChild(info);
+                    resultsDiv.appendChild(container);
+                });
+            } else {
+                resultsDiv.innerHTML = '<p>No images found.</p>';
+            }
+        }
+
         async function getImageIndex(selectedImagePath) {
             try {
-                const response = await fetch('./data/dicts/keyframes_id_search.json'); // Update with actual path or API endpoint
+                const response = await fetch('./data/dicts/keyframes_id_search.json');
                 const imagePaths = await response.json();
                 selectedImagePath = selectedImagePath.split('/').slice(-4).join('/');
 
@@ -142,24 +183,10 @@
                     const data = await response.json();
 
                     if (data.image_paths) {
-                        const resultsDiv = document.getElementById('results');
-                        resultsDiv.innerHTML = '';
-
-                        data.image_paths.forEach(imagePath => {
-                            const container = document.createElement('div');
-                            container.classList.add('image-container');
-
-                            const img = document.createElement('img');
-                            img.src = imagePath;
-                            img.onclick = () => handleImageClick(imagePath);
-                            const info = document.createElement('p');
-                            info.classList.add('image-info');
-                            info.textContent = imagePath.split('/').slice(-2).join('/');  // Show only relevant part
-    
-                            container.appendChild(img);
-                            container.appendChild(info);
-                            resultsDiv.appendChild(container);
-                        });
+                        historyStack.push([...currentResults]);
+                        currentResults = data.image_paths;
+                        displayResults(data.image_paths);
+                        document.getElementById('back-button').style.display = 'block';
                     } else {
                         alert('No images found.');
                     }
@@ -204,30 +231,24 @@
                 });
 
                 const data = await response.json();
-                const resultsDiv = document.getElementById('results');
-                resultsDiv.innerHTML = '';
-
-                if (data.image_paths && data.image_paths.length > 0) {
-                    data.image_paths.forEach(path => {
-                        const container = document.createElement('div');
-                        container.classList.add('image-container');
-
-                        const img = document.createElement('img');
-                        img.src = path;
-                        img.onclick = () => handleImageClick(path);
-                        const info = document.createElement('p');
-                        info.classList.add('image-info');
-                        info.textContent = path.split('/').slice(-2).join('/');  // Show only relevant part
-
-                        container.appendChild(img);
-                        container.appendChild(info);
-                        resultsDiv.appendChild(container);
-                    });
-                } else {
-                    resultsDiv.innerHTML = '<p>No images found.</p>';
+                if (currentResults.length > 0) {
+                    historyStack.push([...currentResults]);
                 }
+                currentResults = data.image_paths;
+                displayResults(data.image_paths);
+                document.getElementById('back-button').style.display = 'block';
             } catch (error) {
                 alert("Search failed: " + error.message);
+            }
+        });
+
+        document.getElementById('back-button').addEventListener('click', () => {
+            if (historyStack.length > 0) {
+                currentResults = historyStack.pop();
+                displayResults(currentResults);
+            }
+            if (historyStack.length === 0) {
+                document.getElementById('back-button').style.display = 'none';
             }
         });
     </script>
