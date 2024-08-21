@@ -76,7 +76,7 @@
 
                             const img = document.createElement('img');
                             img.src = imagePath;
-
+                            img.onclick = () => handleImageClick(imagePath);
                             container.appendChild(img);
                             resultsDiv.appendChild(container);
                         });
