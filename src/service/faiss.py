@@ -34,23 +34,17 @@ class MyFaiss:
         return data
 
     def image_search(self, id_query, k):
-        # Gather features from all indices
-        query_feats = []
-        for index in self.indexes:
-            features = index.reconstruct(id_query).reshape(1, -1)
-            query_feats.append(features)
-
-        # Stack the features from all indices
-        initial_image_features = np.vstack(query_feats)
+        # Gather features from the first index
+        features = self.indexes[0].reconstruct(id_query).reshape(1, -1)
 
         # Perform the search using the first index (primary search)
-        scores, idx_image = self.indexes[0].search(initial_image_features, k=k)
+        scores, idx_image = self.indexes[0].search(features, k=k)
         idx_image = idx_image.flatten()
 
         # Map indices to result strings
-        image_paths = [self.dict_json.get(idx) for idx in idx_image]
-
+        image_paths = [self.dict_json[idx] for idx in idx_image]
         return scores, idx_image, image_paths
+
 
     def show_images(self, image_paths):
         num_images = len(image_paths)
