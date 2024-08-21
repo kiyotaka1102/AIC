@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import torch
 from typing import List
@@ -10,7 +11,7 @@ app = FastAPI()
 
 # Device configuration
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-base_path = r'D:/AIC-24/AIC2024_UTE_AI_Unknown/data/'
+
 # Initialize MyFaiss with initial parameters (no .bin files loaded yet)
 cosine_faiss = MyFaiss(
     bin_files=[],
@@ -19,6 +20,7 @@ cosine_faiss = MyFaiss(
     modes=[]
 )
 
+app.mount("/data", StaticFiles(directory="./data"), name="data")
 templates = Jinja2Templates(directory="./src/template")
 
 class LoadIndexRequest(BaseModel):
@@ -53,7 +55,7 @@ async def search_images(query: SearchQuery):
             raise HTTPException(status_code=400, detail="No index loaded")
    
         image_paths = cosine_faiss.text_search(query.text, query.k)
-        resolved_image_paths = [os.path.join(base_path, image_path) for image_path in image_paths]
+        resolved_image_paths = [f"/data/{image_path}" for image_path in image_paths]  
         return {"image_paths": resolved_image_paths}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

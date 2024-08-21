@@ -2,13 +2,13 @@ import faiss
 import json
 import numpy as np
 import torch
-import clip
+#import clip
 from sentence_transformers import SentenceTransformer
 import matplotlib.pyplot as plt
 import math
 from langdetect import detect
 from sklearn.decomposition import PCA
-
+from src.service.query_processing import Translation 
 class MyFaiss:
     def __init__(self, bin_files: list, dict_json: str, device, modes: list, rerank_bin_file: str = None):
         # Ensure that bin_files and modes lists have the same length
