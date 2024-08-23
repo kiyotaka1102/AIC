@@ -4,100 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Search</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-        }
-        .container {
-            width: 100%;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #fff;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        h2 {
-            color: #555;
-        }
-        form {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 10px;
-            color: #666;
-        }
-        input[type="text"], input[type="number"] {
-            padding: 10px;
-            margin: 5px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            width: calc(100% - 22px);
-            box-sizing: border-box;
-        }
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            background-color: #007BFF;
-            color: #fff;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        .results {
-            margin-top: 20px;
-            display: flex;
-            flex-wrap: wrap;
-        }
-        .image-container {
-            width: 150px;
-            height: 170px;
-            margin: 0;
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 0;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .image-container img {
-            width: 100%;
-            height: 130px;
-            object-fit: cover;
-            cursor: pointer;
-            transition: transform 0.3s ease;
-        }
-        .image-container img:hover {
-            transform: scale(1.05);
-        }
-        .image-info {
-            color: #333;
-            font-size: 12px;
-            padding: 5px;
-            text-align: center;
-            width: 100%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .back-button {
-            margin-top: 10px;
-            display: none;
-            background-color: #6c757d;
-        }
-    </style>
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
     <div class="container">
@@ -105,11 +12,11 @@
 
         <form id="load-form">
             <h2>Select .bin files:</h2>
-            <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_nomic/faiss_nomic_cosine.bin"> NOMIC</label>
+            <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_nomic/faiss_NOMIC_cosine.bin"> NOMIC</label>
             <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_blip/faiss_BLIP_cosine.bin"> BLIP or VLM</label>
             <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_ocr/faiss_OCR_cosine.bin"> OCR</label>
             <h2>Select re-ranking .bin file:</h2>
-            <label><input type="checkbox" name="rerank_file" value="./src/working/dicts/bin_clip/faiss_CLIP_cosine.bin"> Rerank File</label>
+            <label><input type="checkbox" name="rerank_file" value="./src/working/dicts/bin_reitr/faiss_ReITR_cosine.bin"> Rerank File</label>
             <button type="submit">Load Index</button>
         </form>
 
@@ -124,133 +31,6 @@
         <div class="results" id="results"></div>
     </div>
 
-    <script>
-        let historyStack = [];
-        let currentResults = [];
-
-        function displayResults(imagePaths) {
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '';
-
-            if (imagePaths && imagePaths.length > 0) {
-                imagePaths.forEach(path => {
-                    const container = document.createElement('div');
-                    container.classList.add('image-container');
-
-                    const img = document.createElement('img');
-                    img.src = path;
-                    img.onclick = () => handleImageClick(path);
-
-                    const info = document.createElement('p');
-                    info.classList.add('image-info');
-                    info.textContent = path.split('/').slice(-2).join('/');
-
-                    container.appendChild(img);
-                    container.appendChild(info);
-                    resultsDiv.appendChild(container);
-                });
-            } else {
-                resultsDiv.innerHTML = '<p>No images found.</p>';
-            }
-        }
-
-        async function getImageIndex(selectedImagePath) {
-            try {
-                const response = await fetch('./data/dicts/keyframes_id_search.json');
-                const imagePaths = await response.json();
-                selectedImagePath = selectedImagePath.split('/').slice(-4).join('/');
-
-                const index = imagePaths.indexOf(selectedImagePath);
-                return index;
-            } catch (error) {
-                console.error('Error fetching or processing JSON file:', error);
-                return -1;
-            }
-        }
-
-        async function handleImageClick(path) {
-            try {
-                const index = await getImageIndex(path);
-                const k = document.getElementById('k').value;
-
-                if (index !== -1) {
-                    const response = await fetch('/image_click/', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ index, k })
-                    });
-
-                    const data = await response.json();
-
-                    if (data.image_paths) {
-                        historyStack.push([...currentResults]);
-                        currentResults = data.image_paths;
-                        displayResults(data.image_paths);
-                        document.getElementById('back-button').style.display = 'block';
-                    } else {
-                        alert('No images found.');
-                    }
-                } else {
-                    alert('Image not found in the list.');
-                }
-            } catch (error) {
-                alert('Failed to handle image click: ' + error.message);
-            }
-        }
-
-        document.getElementById('load-form').addEventListener('submit', async (event) => {
-            event.preventDefault();
-
-            const selectedFiles = Array.from(document.querySelectorAll('input[name="bin_files"]:checked')).map(cb => cb.value);
-            const rerankFile = document.querySelector('input[name="rerank_file"]:checked')?.value || null;
-
-            try {
-                const response = await fetch('/load_index/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ bin_files: selectedFiles, rerank_file: rerankFile })
-                });
-
-                const data = await response.json();
-                alert(data.status);
-            } catch (error) {
-                alert("Failed to load index: " + error.message);
-            }
-        });
-
-        document.getElementById('search-form').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const text = document.getElementById('text').value;
-            const k = document.getElementById('k').value;
-
-            try {
-                const response = await fetch('/search/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, k })
-                });
-
-                const data = await response.json();
-                if (currentResults.length > 0) {
-                    historyStack.push([...currentResults]);
-                }
-                currentResults = data.image_paths;
-                displayResults(data.image_paths);
-                document.getElementById('back-button').style.display = 'block';
-            } catch (error) {
-                alert("Search failed: " + error.message);
-            }
-        });
-
-        document.getElementById('back-button').addEventListener('click', () => {
-            if (historyStack.length > 0) {
-                currentResults = historyStack.pop();
-                displayResults(currentResults);
-            }
-            if (historyStack.length === 0) {
-                document.getElementById('back-button').style.display = 'none';
-            }
-        });
-    </script>
+    <script src="/static/script.js"></script>
 </body>
 </html>

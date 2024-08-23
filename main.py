@@ -9,8 +9,10 @@ from src.service.faiss import MyFaiss
 
 app = FastAPI()
 
+# Determine device for Torch
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# Initialize MyFaiss instance
 cosine_faiss = MyFaiss(
     bin_files=[],
     dict_json='./data/dicts/keyframes_id_search.json',
@@ -19,7 +21,13 @@ cosine_faiss = MyFaiss(
     rerank_bin_file=None
 )
 
+# Mount static files directory
+app.mount("/static", StaticFiles(directory="./src/template"), name="static")
+
+# Mount data directory
 app.mount("/data", StaticFiles(directory="./data"), name="data")
+
+# Set up Jinja2 template directory
 templates = Jinja2Templates(directory="./src/template")
 
 class LoadIndexRequest(BaseModel):
@@ -74,18 +82,12 @@ async def image_click(request_Image: ImageClickRequest):
         image_idx = request_Image.index
         k = request_Image.k
 
-        # Debugging: Print the received values
-
         _, _, image_paths = cosine_faiss.image_search(image_idx, k)
-
-        # Debugging: Print the search results
-
         resolved_image_paths = [f"/data/{image_path}" for image_path in image_paths]
         return {"image_paths": resolved_image_paths}
     except Exception as e:
         print(f"Error: {str(e)}")  # Log the error message
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/")
 async def get_index(request: Request):
