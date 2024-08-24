@@ -9,6 +9,9 @@ import math
 from langdetect import detect
 from sklearn.decomposition import PCA
 from src.service.query_processing import Translation 
+import ImageReward as reward
+from PIL import Image
+import os
 class MyFaiss:
     def __init__(self, bin_files: list, dict_json: str, device, modes: list, rerank_bin_file: str = None):
         # Ensure that bin_files and modes lists have the same length
@@ -16,14 +19,14 @@ class MyFaiss:
         self.indexes = [self.load_bin_file(f) for f in bin_files]
         # Initialize re-ranking index if provided
         self.rerank_index = self.load_bin_file(rerank_bin_file) if rerank_bin_file else None
-
         self.translate = Translation()
         self.dict_json = self._read_json(dict_json)
         self.modes = modes
         self.device = device
-
+        self.model_ranking = reward.load("ImageReward-v1.0")
+        self.model_ranking.to(self.device)
         # Initialize SentenceTransformer model
-        self.model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True)
+        self.model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True, device=self.device)
 
     def load_bin_file(self, bin_file: str):
         return faiss.read_index(bin_file)
@@ -147,9 +150,25 @@ class MyFaiss:
             for scores, idx_image in all_results:
                 combined_results.extend([(score, self.dict_json[idx_image[0][i]]) for i, score in enumerate(scores[0])])
 
+            # Sort the combined results by score in descending order
             combined_results.sort(key=lambda x: -x[0])
             k_final = max(k, len(combined_results))  # Ensure k does not exceed the number of available results
             result_strings = [image_path for _, image_path in combined_results[:k_final]]
+
+            base_path = f"./data/"
+
+            # Create absolute paths for each image
+            img_paths = [os.path.join(base_path, image_path) for image_path in result_strings]
+            
+            # Get the ranking scores from the model
+            ranking, _ = self.model_ranking.inference_rank(text, img_paths)
+
+            # Create a mapping of image paths to ranking scores
+            ranking_dict = dict(zip(result_strings, ranking))
+ 
+
+            # Sort the result strings based on the ranking scores
+            result_strings.sort(key=lambda path: ranking_dict.get(path, 0))
 
         return result_strings
 
