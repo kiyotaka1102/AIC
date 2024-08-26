@@ -110,7 +110,7 @@ class MyFaiss:
                 return []
 
             rerank_features_combined = np.vstack(rerank_features_list)
-            k_rerank = len(rerank_features_combined)
+            k_rerank = min(k,len(rerank_features_combined))
 
             if rerank_features_combined.shape[1] != self.rerank_index.d:
                 if rerank_features_combined.shape[1] < self.rerank_index.d:
@@ -152,7 +152,7 @@ class MyFaiss:
 
             # Sort the combined results by score in descending order
             combined_results.sort(key=lambda x: -x[0])
-            k_final = max(k, len(combined_results))  # Ensure k does not exceed the number of available results
+            k_final = min(k, len(combined_results))  # Ensure k does not exceed the number of available results
             result_strings = [image_path for _, image_path in combined_results[:k_final]]
 
             base_path = f"./data/"
