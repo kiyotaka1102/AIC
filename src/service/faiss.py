@@ -12,6 +12,7 @@ from src.service.query_processing import Translation
 import ImageReward as reward
 from PIL import Image
 import os
+#from lavis.models import load_model_and_preprocess
 class MyFaiss:
     def __init__(self, bin_files: list, dict_json: str, device, modes: list, rerank_bin_file: str = None):
         # Ensure that bin_files and modes lists have the same length
@@ -26,8 +27,9 @@ class MyFaiss:
         self.model_ranking = reward.load("ImageReward-v1.0")
         self.model_ranking.to(self.device)
         # Initialize SentenceTransformer model
-        self.model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True, device=self.device)
-
+        self.model_nomic = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True, device=self.device)
+        #self.model_blip, self.vis_processors, self.text_processors = load_model_and_preprocess("blip2_image_text_matching", "pretrain", 
+                                                                           #device= self.device, is_eval=True)
     def load_bin_file(self, bin_file: str):
         return faiss.read_index(bin_file)
 
@@ -82,17 +84,19 @@ class MyFaiss:
 
         all_results = []
 
-        text_features = self.model.encode(text).reshape(1, -1)
-        text_features_rr = text_features.copy()
+        text_features = self.model_nomic.encode(text).reshape(1, -1)
+        text_features_rr = text_features
 
-        for index in self.indexes:
+        for index,mode  in zip(self.indexes,self.modes):
             if text_features.shape[1] != index.d:
                 if text_features.shape[1] < index.d:
                     text_features = np.pad(text_features, ((0, 0), (0, index.d - text_features.shape[1])), 'constant')
                 else:
                     text_features = text_features[:, :index.d]
-
-            scores, idx_image = index.search(text_features, k=k)
+            if mode == "blip":
+                scores, idx_image = index.search(text_features, k=k // len(self.indexes))
+            else:
+                scores, idx_image = index.search(text_features, k=k // len(self.indexes))
             all_results.append((scores, idx_image))
 
         if self.rerank_index is not None:
@@ -110,7 +114,7 @@ class MyFaiss:
                 return []
 
             rerank_features_combined = np.vstack(rerank_features_list)
-            k_rerank = min(k,len(rerank_features_combined))
+            k_rerank = max(k,len(rerank_features_combined))
 
             if rerank_features_combined.shape[1] != self.rerank_index.d:
                 if rerank_features_combined.shape[1] < self.rerank_index.d:
@@ -152,7 +156,7 @@ class MyFaiss:
 
             # Sort the combined results by score in descending order
             combined_results.sort(key=lambda x: -x[0])
-            k_final = min(k, len(combined_results))  # Ensure k does not exceed the number of available results
+            k_final = max(k, len(combined_results))  # Ensure k does not exceed the number of available results
             result_strings = [image_path for _, image_path in combined_results[:k_final]]
 
             base_path = f"./data/"
@@ -166,7 +170,7 @@ class MyFaiss:
             # Create a mapping of image paths to ranking scores
             ranking_dict = dict(zip(result_strings, ranking))
  
-
+    
             # Sort the result strings based on the ranking scores
             result_strings.sort(key=lambda path: ranking_dict.get(path, 0))
 

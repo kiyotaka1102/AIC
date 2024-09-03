@@ -68,6 +68,7 @@ async def search_images(query: SearchQuery):
             raise HTTPException(status_code=400, detail="No index loaded")
 
         image_paths = cosine_faiss.text_search(query.text, query.k)
+
         resolved_image_paths = [f"/data/{image_path}" for image_path in image_paths]
         return {"image_paths": resolved_image_paths}
     except Exception as e:
