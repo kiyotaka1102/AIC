@@ -1,126 +1,160 @@
-let historyStack = [];
-let currentResults = [];
+const fetch = require('node-fetch');
 
-function displayResults(imagePaths) {
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = '';
+// Function to log in and fetch evaluations
+async function loginAndFetchEvaluations(username, password) {
+    const loginUrl = 'https://eventretrieval.one/api/v2/login';
+    const evaluationUrl = 'https://eventretrieval.one/api/v2/client/evaluation/list';
+    let sessionId, evaluationId;
 
-    if (imagePaths && imagePaths.length > 0) {
-        imagePaths.forEach(path => {
-            const container = document.createElement('div');
-            container.classList.add('image-container');
-
-            const img = document.createElement('img');
-            img.src = path;
-            img.onclick = () => handleImageClick(path);
-
-            const info = document.createElement('p');
-            info.classList.add('image-info');
-            info.textContent = path.split('/').slice(-2).join('/');
-
-            container.appendChild(img);
-            container.appendChild(info);
-            resultsDiv.appendChild(container);
+    try {
+        // Step 1: Log in and get session ID
+        const loginResponse = await fetch(loginUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username, password })
         });
-    } else {
-        resultsDiv.innerHTML = '<p>No images found.</p>';
-    }
-}
 
-async function getImageIndex(selectedImagePath) {
-    try {
-        const response = await fetch('./data/dicts/keyframes_id_search.json');
-        const imagePaths = await response.json();
-        selectedImagePath = selectedImagePath.split('/').slice(-4).join('/');
+        if (!loginResponse.ok) {
+            throw new Error(`Login error: ${loginResponse.status} ${loginResponse.statusText}`);
+        }
 
-        const index = imagePaths.indexOf(selectedImagePath);
-        return index;
-    } catch (error) {
-        console.error('Error fetching or processing JSON file:', error);
-        return -1;
-    }
-}
+        const loginData = await loginResponse.json();
+        sessionId = loginData.sessionId;
+        console.log('Login successful:', loginData);
+        console.log('Session ID:', sessionId);
 
-async function handleImageClick(path) {
-    try {
-        const index = await getImageIndex(path);
-        const k = document.getElementById('k').value;
-
-        if (index !== -1) {
-            const response = await fetch('/image_click/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ index, k })
-            });
-
-            const data = await response.json();
-
-            if (data.image_paths) {
-                historyStack.push([...currentResults]);
-                currentResults = data.image_paths;
-                displayResults(data.image_paths);
-                document.getElementById('back-button').style.display = 'block';
-            } else {
-                alert('No images found.');
+        // Step 2: Get Evaluation IDs
+        const evaluationResponse = await fetch(`${evaluationUrl}?session=${sessionId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
             }
-        } else {
-            alert('Image not found in the list.');
+        });
+
+        if (!evaluationResponse.ok) {
+            throw new Error(`Evaluation fetch error: ${evaluationResponse.status} ${evaluationResponse.statusText}`);
         }
+
+        const evaluations = await evaluationResponse.json();
+        console.log('Evaluations:', evaluations);
+
+        // Get the first evaluation ID
+        if (evaluations.length > 0) {
+            evaluationId = evaluations[0].id; // Assuming you want the first evaluation
+            console.log(`Selected Evaluation ID: ${evaluationId}`);
+        } else {
+            throw new Error('No evaluations found.');
+        }
+
     } catch (error) {
-        alert('Failed to handle image click: ' + error.message);
+        console.error('Operation failed:', error);
+    }
+
+    return { sessionId, evaluationId };
+}
+
+// Function to submit QA answers
+async function submitQA(sessionId, evaluationId, answer, videoId, time) {
+    const submitUrl = `https://eventretrieval.one/api/v2/submit/${evaluationId}`;
+    
+    const formattedAnswer = `${answer}-${videoId}-${time}`;
+    
+    const body = {
+        session: sessionId,
+        answerSets: [{
+            answers: [{
+                text: formattedAnswer
+            }]
+        }]
+    };
+
+    try {
+        const response = await fetch(submitUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Submit QA error: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('Submit QA result:', result);
+    } catch (error) {
+        console.error('Submission failed:', error);
     }
 }
 
-document.getElementById('load-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
+// Function to submit KIS answers
+async function submitKIS(sessionId, evaluationId, videoId, time) {
+    const submitUrl = `https://eventretrieval.one/api/v2/submit/${evaluationId}`;
 
-    const selectedFiles = Array.from(document.querySelectorAll('input[name="bin_files"]:checked')).map(cb => cb.value);
-    const rerankFile = document.querySelector('input[name="rerank_file"]:checked')?.value || null;
-
-    try {
-        const response = await fetch('/load_index/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bin_files: selectedFiles, rerank_file: rerankFile })
-        });
-
-        const data = await response.json();
-        alert(data.status);
-    } catch (error) {
-        alert("Failed to load index: " + error.message);
-    }
-});
-
-document.getElementById('search-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const text = document.getElementById('text').value;
-    const k = document.getElementById('k').value;
+    const body = {
+        session: sessionId,
+        answerSets: [{
+            answers: [{
+                mediaItemName: videoId,
+                start: time,
+                end: time // Use the same time for start and end
+            }]
+        }]
+    };
 
     try {
-        const response = await fetch('/search/', {
+        const response = await fetch(submitUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, k })
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
         });
 
-        const data = await response.json();
-        if (currentResults.length > 0) {
-            historyStack.push([...currentResults]);
+        if (!response.ok) {
+            throw new Error(`Submit KIS error: ${response.status} ${response.statusText}`);
         }
-        currentResults = data.image_paths;
-        displayResults(data.image_paths);
-        document.getElementById('back-button').style.display = 'block';
+
+        const result = await response.json();
+        console.log('Submit KIS result:', result);
     } catch (error) {
-        alert("Search failed: " + error.message);
+        console.error('Submission failed:', error);
+    }
+}
+
+// Event listener for getting session ID and evaluation ID
+document.getElementById('get-session-button').addEventListener('click', async () => {
+    const { sessionId, evaluationId } = await loginAndFetchEvaluations('team70', 'EwetvYSbAZ');
+
+    // Enable the submit buttons after fetching evaluations
+    document.getElementById('submit-qa-button').disabled = false;
+    document.getElementById('submit-kis-button').disabled = false;
+
+    // Store the session ID and evaluation ID for later use
+    window.sessionId = sessionId;
+    window.evaluationId = evaluationId;
+});
+
+// Event listener for the QA submission button
+document.getElementById('submit-qa-button').addEventListener('click', () => {
+    const answer = prompt("Enter your QA answer:");
+    const videoId = prompt("Enter Video ID:");
+    const time = prompt("Enter Time (ms):");
+
+    if (answer && videoId && time) {
+        submitQA(window.sessionId, window.evaluationId, answer, videoId, time);
     }
 });
 
-document.getElementById('back-button').addEventListener('click', () => {
-    if (historyStack.length > 0) {
-        currentResults = historyStack.pop();
-        displayResults(currentResults);
-    }
-    if (historyStack.length === 0) {
-        document.getElementById('back-button').style.display = 'none';
+// Event listener for the KIS submission button
+document.getElementById('submit-kis-button').addEventListener('click', () => {
+    const videoId = prompt("Enter Video ID:");
+    const time = prompt("Enter Time (ms):"); // Prompt only for one time input
+
+    if (videoId && time) {
+        submitKIS(window.sessionId, window.evaluationId, videoId, time);
     }
 });
