@@ -156,17 +156,17 @@
         
             <form id="load-form">
                 <h2>Select .bin files:</h2>
-                <label><input type="checkbox" name="bin_files" value="./data/dicts/bin_nomic/faiss_nomic_cosine.bin"> NOMIC</label>
-                <label><input type="checkbox" name="bin_files" value="./data/dicts/bin_blip2/faiss_BLIP2_cosine.bin"> BLIP2</label>
+                <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_nomic/faiss_nomic_cosine.bin"> NOMIC</label>
+                <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_blip/faiss_BLIP_cosine.bin"> BLIP</label>
                 <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_ocr/faiss_OCR_cosine.bin"> OCR</label>
-                <label><input type="checkbox" name="bin_files" value="./data/dicts/bin_reitr/faiss_ReITR_cosine.bin"> ReITR</label>
+                <label><input type="checkbox" name="bin_files" value="./src/working/dicts/bin_reitr/faiss_ReITR_cosine.bin"> ReITR</label>
                 <h2>Select re-ranking .bin file:</h2>
-                <label><input type="checkbox" name="rerank_file" value="./data/dicts/bin_reitr/faiss_ReITR_cosine.bin"> Rerank IMG Reward</label>
+                <label><input type="checkbox" name="rerank_file" value="./src/working/dicts/bin_reitr/faiss_ReITR_cosine.bin"> Without Rerank</label>
                 <button type="submit">Load Index</button>
             </form>
         
             <form id="search-form">
-                <input type="text" class="search-text" placeholder="Enter text to search" required>
+                <input type="text" id="text" class="search-text" placeholder="Enter text to search" required>
                 <input type="number" id="k" placeholder="Number of results" required min="1">
                 <button type="submit">Search</button>
             </form>
